@@ -1,20 +1,21 @@
 <?php
+
 /**
- * Plugin Name: Payment Gateway PayPal Pro WooCommerce
+ * Plugin Name: Payment Gateway for PayPal Pro & PayPal Checkout for WooCommerce
  * Plugin URI: https://wp-ecommerce.net/paypal-pro-payment-gateway-for-woocommerce
  * Description: Easily adds PayPal Pro payment gateway to the WooCommerce plugin so you can allow customers to checkout via credit card.
- * Version: 3.0.3
+ * Version: 4.0.0
  * Author: wp.insider
  * Author URI: https://wp-ecommerce.net/
- * Requires at least: 6.0
+ * Requires at least: 6.5
  * License: GPL2 or Later
- * WC requires at least: 6.0
- * WC tested up to: 10.1.2
+ * WC requires at least: 8.0
+ * WC tested up to: 10.5.3
  */
 
-if ( ! defined( 'ABSPATH' ) ) {
-    //Exit if accessed directly
-    exit;
+if (! defined('ABSPATH')) {
+	//Exit if accessed directly
+	exit;
 }
 
 //Slug - wcpprog
@@ -22,93 +23,95 @@ if ( ! defined( 'ABSPATH' ) ) {
 //Block support
 //The 'WCPPROG_WooCommerce_Init_handler' class has the block support declaration.
 
-//HPOS Compatibility
-add_action( 'before_woocommerce_init', function() {
-	if ( class_exists( \Automattic\WooCommerce\Utilities\FeaturesUtil::class ) ) {
-		\Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility( 'custom_order_tables', __FILE__, true );
-	}
-} );
-
 //The main class
-if ( ! class_exists( 'WC_Paypal_Pro_Gateway_Addon' ) ) {
+if (! class_exists('WC_Paypal_Pro_Gateway_Addon')) {
 
-    class WC_Paypal_Pro_Gateway_Addon {
+	class WC_Paypal_Pro_Gateway_Addon {
 
-	var $version = '3.0.2';
-	var $db_version = '1.0';
-	var $plugin_url;
-	var $plugin_path;
+		var $version = '4.0.0';
+		var $db_version = '1.0';
+		var $plugin_url;
+		var $plugin_path;
 
-	function __construct() {
-	    $this->define_constants();
-	    $this->includes();
-	    $this->loader_operations();
-	    //Handle any db install and upgrade task
-	    add_action( 'init', array( &$this, 'plugin_init' ), 0 );
+		function __construct() {
+			$this->define_constants();
+			$this->includes();
+			$this->loader_operations();
+			//Handle any db install and upgrade task
+			add_action('init', array(&$this, 'plugin_init'), 0);
 
-	    add_filter( 'plugin_action_links', array( &$this, 'add_link_to_settings' ), 10, 2 );
+			add_filter('plugin_action_links', array(&$this, 'add_link_to_settings'), 10, 2);
+			add_filter('admin_enqueue_scripts', array(&$this, 'handle_admin_enqueue_scripts'), 10, 2);
+		}
+
+		function define_constants() {
+			define('WC_PP_PRO_ADDON_VERSION', $this->version);
+			define('WC_PP_PRO_ADDON_URL', $this->plugin_url());
+			define('WC_PP_PRO_ADDON_PATH', $this->plugin_path());
+			define('WC_PP_PRO_ADDON_FILE', __FILE__);
+		}
+
+		function includes() {
+			include_once WC_PP_PRO_ADDON_PATH . '/woo-paypal-pro-utility-class.php';
+			include_once WC_PP_PRO_ADDON_PATH . '/lib/paypal/class-tthq-paypal-main.php';
+		}
+
+		public function handle_admin_enqueue_scripts(){
+			wp_enqueue_style('woo-pp-pro-admin-styles', WC_PP_PRO_ADDON_URL . '/assets/css/woo-pp-pro-admin-styles.css', null, WC_PP_PRO_ADDON_VERSION );
+		}
+
+		function loader_operations() {
+			add_action('plugins_loaded', array(&$this, 'plugins_loaded_handler')); //plugins loaded hook
+		}
+
+		function plugins_loaded_handler() {
+			//Runs when plugins_loaded action gets fired
+			if (class_exists('WC_Payment_Gateway')) {
+				include_once(WC_PP_PRO_ADDON_PATH . '/woo-paypal-pro-gateway-class.php');
+				include_once(WC_PP_PRO_ADDON_PATH . '/woo-paypal-pro-gateway-paypal-checkout.php');
+				add_filter('woocommerce_payment_gateways', array($this, 'init_payment_gateways'));
+			}
+		}
+
+		function do_db_upgrade_check() {
+			//NOP
+		}
+
+		function plugin_url() {
+			if ($this->plugin_url)
+				return $this->plugin_url;
+			return $this->plugin_url = plugins_url(basename(plugin_dir_path(__FILE__)), basename(__FILE__));
+		}
+
+		function plugin_path() {
+			if ($this->plugin_path)
+				return $this->plugin_path;
+			return $this->plugin_path = untrailingslashit(plugin_dir_path(__FILE__));
+		}
+
+		function plugin_init() { //Gets run when WP Init is fired
+			load_plugin_textdomain('woocommerce-paypal-pro-payment-gateway', false, dirname(plugin_basename(__FILE__)) . '/languages/');
+		}
+
+		function add_link_to_settings($links, $file) {
+			if ($file == plugin_basename(__FILE__)) {
+				$settings_link = '<a href="admin.php?page=wc-settings&tab=checkout">Settings</a>';
+				array_unshift($links, $settings_link);
+			}
+			return $links;
+		}
+
+		function init_payment_gateways($methods) {
+			array_push($methods, 'WC_PP_PRO_Gateway');
+			array_push($methods, 'WC_Gateway_PayPal_Checkout');
+			return $methods;
+		}
 	}
 
-	function define_constants() {
-	    define( 'WC_PP_PRO_ADDON_VERSION', $this->version );
-	    define( 'WC_PP_PRO_ADDON_URL', $this->plugin_url() );
-	    define( 'WC_PP_PRO_ADDON_PATH', $this->plugin_path() );
-	    define( 'WC_PP_PRO_ADDON_FILE', __FILE__ );
-	}
+	//End of plugin class
+} //End of class not exists check
 
-	function includes() {
-	    include_once('woo-paypal-pro-utility-class.php');
-	}
-
-	function loader_operations() {
-	    add_action( 'plugins_loaded', array( &$this, 'plugins_loaded_handler' ) ); //plugins loaded hook
-	}
-
-	function plugins_loaded_handler() {
-	    //Runs when plugins_loaded action gets fired
-	    include_once('woo-paypal-pro-gateway-class.php');
-	    add_filter( 'woocommerce_payment_gateways', array( &$this, 'init_paypal_pro_gateway' ) );
-	}
-
-	function do_db_upgrade_check() {
-	    //NOP
-	}
-
-	function plugin_url() {
-	    if ( $this->plugin_url )
-		return $this->plugin_url;
-	    return $this->plugin_url = plugins_url( basename( plugin_dir_path( __FILE__ ) ), basename( __FILE__ ) );
-	}
-
-	function plugin_path() {
-	    if ( $this->plugin_path )
-		return $this->plugin_path;
-	    return $this->plugin_path = untrailingslashit( plugin_dir_path( __FILE__ ) );
-	}
-
-	function plugin_init() {//Gets run when WP Init is fired
-	    load_plugin_textdomain( 'woocommerce-paypal-pro-payment-gateway', false, dirname( plugin_basename( __FILE__ ) ) . '/languages/' );
-	}
-
-	function add_link_to_settings( $links, $file ) {
-	    if ( $file == plugin_basename( __FILE__ ) ) {
-		$settings_link = '<a href="admin.php?page=wc-settings&tab=checkout&section=paypalpro">Settings</a>';
-		array_unshift( $links, $settings_link );
-	    }
-	    return $links;
-	}
-
-	function init_paypal_pro_gateway( $methods ) {
-	    array_push( $methods, 'WC_PP_PRO_Gateway' );
-	    return $methods;
-	}
-
-    }
-
-    //End of plugin class
-}//End of class not exists check
-
-$GLOBALS[ 'WC_Paypal_Pro_Gateway_Addon' ] = new WC_Paypal_Pro_Gateway_Addon();
+$GLOBALS['WC_Paypal_Pro_Gateway_Addon'] = new WC_Paypal_Pro_Gateway_Addon();
 
 require_once WC_PP_PRO_ADDON_PATH . '/woo-paypal-pro-woocommerce-init-handler.php';
 
