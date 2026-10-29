@@ -1,16 +1,17 @@
 <?php
 
 /**
- * Plugin Name: Payment Gateway for PayPal Pro & PayPal Checkout for WooCommerce
+ * Plugin Name: Payment Gateway for PayPal Pro, PayPal Checkout & Subscriptions for WooCommerce
  * Plugin URI: https://wp-ecommerce.net/paypal-pro-payment-gateway-for-woocommerce
- * Description: Easily adds PayPal Pro payment gateway to the WooCommerce plugin so you can allow customers to checkout via credit card.
- * Version: 4.0.0
+ * Description: Easily adds PayPal Checkout and PayPal Pro payment gateways to the WooCommerce plugin so you can allow customers to checkout via credit card or PayPal, and sell recurring PayPal subscriptions.
+ * Version: 4.1.0
  * Author: wp.insider
  * Author URI: https://wp-ecommerce.net/
  * Requires at least: 6.5
+ * Requires PHP: 7.4
  * License: GPL2 or Later
  * WC requires at least: 8.0
- * WC tested up to: 10.5.3
+ * WC tested up to: 11.2.1
  */
 
 if (! defined('ABSPATH')) {
@@ -28,7 +29,7 @@ if (! class_exists('WC_Paypal_Pro_Gateway_Addon')) {
 
 	class WC_Paypal_Pro_Gateway_Addon {
 
-		var $version = '4.0.0';
+		var $version = '4.1.0';
 		var $db_version = '1.0';
 		var $plugin_url;
 		var $plugin_path;
@@ -116,3 +117,7 @@ $GLOBALS['WC_Paypal_Pro_Gateway_Addon'] = new WC_Paypal_Pro_Gateway_Addon();
 require_once WC_PP_PRO_ADDON_PATH . '/woo-paypal-pro-woocommerce-init-handler.php';
 
 new WCPPROG_WooCommerce_Init_handler();
+
+require_once WC_PP_PRO_ADDON_PATH . '/subscription/class-wcppprog-sub-related.php';
+
+new WCPPROG_Subscription_Related();

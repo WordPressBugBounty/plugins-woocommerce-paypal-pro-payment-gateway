@@ -2,6 +2,10 @@
 
 namespace TTHQ\WC_PP_PRO\Lib\PayPal;
 
+if ( ! defined( 'ABSPATH' ) ) {
+    exit;
+}
+
 use TTHQ\WC_PP_PRO\Lib\PayPal\Onboarding\PayPal_PPCP_Onboarding_Serverside;
 
 //Includes
@@ -17,9 +21,12 @@ include_once( 'class-tthq-paypal-utils.php' );//Misc project specific utility fu
 include_once( 'class-tthq-paypal-utils-ipn-related.php' );//Misc IPN related utility functions.
 include_once( 'class-tthq-paypal-cache.php' );
 include_once( 'class-tthq-paypal-bearer.php' );
+include_once( 'class-tthq-paypal-checkout-attempt.php' );
 include_once( 'class-tthq-paypal-button-ajax-handler.php' );
 include_once( 'class-tthq-paypal-button-sub-ajax-handler.php' );
 include_once( 'class-tthq-paypal-acdc-related.php' );
+include_once( 'class-tthq-paypal-checkout-guard.php' );
+include_once( 'class-tthq-paypal-lock.php' );
 
 //Onboarding related includes
 include_once( 'onboarding-related/class-tthq-paypal-onboarding.php' );//PPCP Onboarding related functions.
@@ -27,7 +34,7 @@ include_once( 'onboarding-related/class-tthq-paypal-onboarding-serverside.php' )
 
 /**
  * The Main class to handle the new PayPal library related tasks. 
- * It initializes when this file is inlcuded.
+ * It initializes when this file is included.
  */
 class PayPal_Main {
 
@@ -49,16 +56,14 @@ class PayPal_Main {
 		//Set the menu page for the API connection settings.
 		self::$paypal_webhook_event_query_arg = PayPal_Utils::auto_prefix('paypal_webhook_event', '_');
 		
-		if ( isset( $_GET['action'] ) && $_GET['action'] == self::$paypal_webhook_event_query_arg && isset( $_GET['mode'] )) {
-			//Register action (to handle webhook) only on our webhook notification URL.
-			new PayPal_Webhook_Event_Handler();
-		}
+		//Register action (to handle webhook) only on our webhook notification URL.
+		new PayPal_Webhook_Event_Handler();
 
 		//Initialize the PayPal Ajax Create and Capture Order Class so it can handle the ajax request(s) for one-time payments.
 		new PayPal_Button_Ajax_Handler();
 
 		//Initialize the PayPal Ajax Create and Process subscription events so it can handle the ajax request(s) for subscriptions.
-		// new PayPal_Button_Sub_Ajax_Handler();
+		new PayPal_Button_Sub_Ajax_Handler();
 
 		//Initialize the PayPal OnApprove IPN Handler so it can handle the 'onApprove' ajax request(s).
 		// new PayPal_OnApprove_IPN_Handler();

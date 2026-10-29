@@ -1,0 +1,53 @@
+<?php
+
+// Ensure the WooCommerce order class is loaded first.
+if ( ! class_exists( 'WC_Order' ) ) {
+	return;
+}
+
+class WCPPROG_WC_Subscription_Order extends WC_Order {
+
+	public $order_type = WCPPROG_Subscription_Order_Handler::ORDER_TYPE;
+
+	public function get_type() {
+		return WCPPROG_Subscription_Order_Handler::ORDER_TYPE;
+	}
+
+	/** Keep status transitions valid in webhooks, cron and frontend requests too. */
+	protected function get_valid_statuses() {
+		return array_keys( WCPPROG_Subscription_Order_Handler::get_subscription_statuses() );
+	}
+
+	public function set_next_payment_date( $date ) {
+		$this->update_meta_data( '_next_payment_date', sanitize_text_field($date) );
+	}
+
+	public function get_next_payment_date() {
+		return $this->get_meta( '_next_payment_date', true );
+	}
+
+	public function set_paypal_subscription_id( $date ) {
+		$this->update_meta_data( '_wcppprog_paypal_subscription_id', sanitize_text_field($date) );
+	}
+
+	public function get_paypal_subscription_id() {
+		return $this->get_meta( '_wcppprog_paypal_subscription_id', true );
+	}
+
+	public function get_parent_order_id_ref() {
+		return (int) $this->get_meta( '_parent_order_id', true );
+	}
+
+	public function get_related_order_ids() {
+		$ids = $this->get_meta( '_related_order_ids', true );
+
+		return is_array( $ids ) ? $ids : array();
+	}
+
+	public function add_related_order_id( $order_id ) {
+		$ids   = $this->get_related_order_ids();
+		$ids[] = (int) $order_id;
+		$this->update_meta_data( '_related_order_ids', array_unique( $ids ) );
+	}
+
+}

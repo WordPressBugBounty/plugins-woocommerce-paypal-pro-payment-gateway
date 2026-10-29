@@ -52,7 +52,12 @@ class PayPal_Request_API {
 
 	public function set_api_credentials( $client_id, $secret ) {
 		if( empty( $client_id ) || empty( $secret ) ){
-			wp_die( "PayPal API credentials are not set. Missing Client ID or Secret Key. Please set them in the plugin's payment settings page." );
+			$msg = "PayPal API credentials are not set. Missing Client ID or Secret Key. Please set them in the plugin's payment settings page.";
+			if (wp_doing_ajax() ) {
+				throw new \Exception( esc_html( $msg ) );
+			} else {
+				wp_die( esc_html( $msg ) );
+			}
 		}
 		$this->client_id = $client_id;
 		$this->secret = $secret;
@@ -321,6 +326,7 @@ class PayPal_Request_API {
 	 * Minimizes the amount of response code check the source code has to do.
 	 */
 	private function process_request_result( $res, $status_code = 200, $additional_args = array() ) {
+		$this->last_error = array();
 		if (is_wp_error( $res )) {
 			$this->last_error['error_message'] = $res->get_error_message();
 			$this->last_error['error_code'] = $res->get_error_code();
@@ -330,19 +336,52 @@ class PayPal_Request_API {
 		}
 
 		if ($status_code !== $res['response']['code']) {
+			$this->last_error['http_code'] = $res['response']['code'];
+			$this->last_error['error_message'] = 'PayPal returned an unexpected HTTP status.';
 			if (! empty( $res['body'] )) {
 				$body = json_decode( $res['body'], true );
 				if (isset( $body['error'] )) {
 					$this->last_error['error_message'] = $body['error_description'];
 					$this->last_error['error_code'] = $body['error'];//String error code (ex: "invalid_client")
 					$this->last_error['http_code'] = $res['response']['code'];//HTTP error code (ex: 400)
+				} elseif ( isset( $body['name'] ) ) {
+					$this->last_error['error_code'] = $body['name'];
+					$this->last_error['error_message'] = $body['message'] ?? $body['name'];
+					// PayPal lists the rejected fields here; it is what explains a schema error.
+					$issues = array();
+					foreach ( isset( $body['details'] ) && is_array( $body['details'] ) ? $body['details'] : array() as $detail ) {
+						if ( ! is_array( $detail ) ) {
+							continue;
+						}
+						$issue = sanitize_text_field( (string) ( $detail['issue'] ?? '' ) );
+						if ( ! empty( $detail['field'] ) ) {
+							$issue .= ' (' . sanitize_text_field( (string) $detail['field'] ) . ')';
+						}
+						if ( ! empty( $detail['description'] ) ) {
+							$issue .= ': ' . sanitize_text_field( (string) $detail['description'] );
+						}
+						if ( '' !== trim( $issue ) ) {
+							$issues[] = trim( $issue );
+						}
+					}
+					if ( $issues ) {
+						$this->last_error['details'] = $issues;
+					}
 				}
 			} else {
 				//Empty body response.
 				$this->last_error['error_message'] = 'Error! The body of the response is empty. Check that the expected response status code is correct.';
 			}
+			$this->last_error['debug_id'] = sanitize_text_field( (string) wp_remote_retrieve_header( $res, 'paypal-debug-id' ) );
 			//Log this error so the debug option can reveal the details.
-			$this->log_api_error_response( $res, $this->last_error['error_message'], $additional_args );
+			$log_message = $this->last_error['error_message'];
+			if ( ! empty( $this->last_error['error_code'] ) ) {
+				$log_message .= ' Error name: ' . $this->last_error['error_code'] . '.';
+			}
+			if ( ! empty( $this->last_error['details'] ) ) {
+				$log_message .= ' Details: ' . implode( '; ', $this->last_error['details'] );
+			}
+			$this->log_api_error_response( $res, $log_message, $additional_args );
 			return false;
 		}
 
